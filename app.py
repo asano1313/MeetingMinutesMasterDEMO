@@ -17,6 +17,8 @@ os.environ['DEEPGRAM_API_KEY'] = st.secrets.DEEPGRAM_API_KEY.key
 os.environ['OPENAI_API_KEY'] = st.secrets.OPENAI_API_KEY.key
 
 
+
+
 def get_audio_duration(file_path):
     audio = AudioSegment.from_file(file_path)
     duration_in_seconds = len(audio) / 1000.0  # ミリ秒から秒に変換
@@ -266,8 +268,8 @@ with col2:
 with col3:
     st.header("Gpt4o")
 
-def genearate(audio_file, model_name, queue):
-
+def genearate(audio_file, model_name):
+    global price_text
     genai.configure(api_key=st.secrets.GEMINI_API_KEY.key)
     audio_file = genai.upload_file(path=audio_file)
 
@@ -277,8 +279,7 @@ def genearate(audio_file, model_name, queue):
         audio_file = genai.get_file(audio_file.name)
 
     if audio_file.state.name == "FAILED":
-        raise ValueError(audio_file.state.name)
-    st.write(audio_file.uri)        
+        raise ValueError(audio_file.state.name)     
 
     model = genai.GenerativeModel(
         model_name=model_name
@@ -368,36 +369,36 @@ def genearate(audio_file, model_name, queue):
     genai.delete_file(audio_file.name)
 
 
-    minutes = ""
-    for chunk in response:
-        minutes += chunk.text
-        queue.put(minutes)
-        time.sleep(0.05)
+    # minutes = ""
+    # for chunk in response:
+    #     minutes += chunk.text
+    #     queue.put(minutes)
+    #     time.sleep(0.05)
 
     output_token = response.usage_metadata.candidates_token_count
 
     if model_name == "models/gemini-1.5-pro-latest":
-        st.write(1)
         input_price = 0.0000035 * input_token
         output_price = 0.0000105 * output_token
         price = input_price + output_price
-        minutes += f"\n ## price(USD): ${format(price, '.6f')}"
-        time.sleep(0.05)
-        queue.put(minutes)
-        time.sleep(0.05)
+        price_text = f"\n ## price(USD): ${format(price, '.6f')}"
+        # minutes += f"\n ## price(USD): ${format(price, '.6f')}"
+        # time.sleep(0.05)
+        # queue.put(minutes)
+        # time.sleep(0.05)
     if model_name == "models/gemini-1.5-flash-latest":
-        st.write(2)
         input_price = 0.00000035 * input_token
         output_price = 0.00000105 * output_token
         price = input_price + output_price
-        minutes += f"\n ## price(USD): ${format(price, '.6f')}"
-        time.sleep(0.05)
-        queue.put(minutes)
-        time.sleep(0.05)       
+        price_text = f"\n ## price(USD): ${format(price, '.6f')}"
+        # minutes += f"\n ## price(USD): ${format(price, '.6f')}"
+        # time.sleep(0.05)
+        # queue.put(minutes)
+        # time.sleep(0.05)       
 
-    return "DONE"
+    return response
 
-def generate_gpt4o(m4a_path, model_name, queue):
+def generate_gpt4o(m4a_path, model_name):
     tran = transcribe(m4a_path=m4a_path)
     chat_client = ChatOpenAI(model=model_name, temperature=0)
     system_prompt = f"""
@@ -485,12 +486,9 @@ def generate_gpt4o(m4a_path, model_name, queue):
         total_cost = deepgram_price + cb.total_cost
         cost = f"\n ## Price(USD): ${format(total_cost, '.6f')}"
 
-    minutes = ""
-    minutes += response.content
-    minutes += cost
-    queue.put(minutes)
+    minutes = response.content + cost
 
-    return "DONE"
+    return minutes
 
 
 if uploaded_file is not None:
@@ -521,34 +519,65 @@ if uploaded_file is not None:
     # audio_time = get_audio_duration(m4a_path)
     # st.write(audio_time)
 
-    queue1 = Queue()
-    queue2 = Queue()
-    queue3 = Queue()
-    future1 = Thread(target=genearate, args=(m4a_path, "models/gemini-1.5-pro-latest", queue1))
-    future2 = Thread(target=genearate, args=(m4a_path, "models/gemini-1.5-flash-latest", queue2))
-    future3 = Thread(target=generate_gpt4o, args=(m4a_path, "gpt-4o-2024-05-13", queue3))
+    # queue1 = Queue()
+    # queue2 = Queue()
+    # queue3 = Queue()
+    # future1 = Thread(target=genearate, args=(m4a_path, "models/gemini-1.5-pro-latest", queue1))
+    # future2 = Thread(target=genearate, args=(m4a_path, "models/gemini-1.5-flash-latest", queue2))
+    # future3 = Thread(target=generate_gpt4o, args=(m4a_path, "gpt-4o-2024-05-13", queue3))
 
 
 
-    future1.start()
-    future2.start()
-    future3.start()
+    # future1.start()
+    # future2.start()
+    # future3.start()
 
 
     minutes_container1 = col1.empty()
     minutes_container2 = col2.empty()
     minutes_container3 = col3.empty()
 
-    while future1.is_alive() or future2.is_alive():
-        if not queue1.empty():
-            minutes_container1.write(queue1.get())
-        if not queue2.empty():
-            minutes_container2.write(queue2.get()) 
-        if not queue3.empty():
-            minutes_container3.write(queue3.get()) 
-    future1.join()
-    future2.join()
-    future3.join()
+
+    with st.spinner('Gemini 1.5 (pro) 実行中...'):
+        minutes1 = ""
+        response1 = genearate(m4a_path, "models/gemini-1.5-pro-latest")
+        for chunk1 in response1:
+            minutes1 += chunk1.text
+            minutes_container1.write(minutes1)
+            time.sleep(0.05)
+        minutes1 += price_text
+        minutes_container1.write(minutes1)
+
+    with st.spinner('Gemini 1.5 (flash) 実行中...'):
+        minutes2 = ""
+        response2 = genearate(m4a_path, "models/gemini-1.5-flash-latest")
+        for chunk2 in response2:
+            minutes2 += chunk2.text
+            minutes_container2.write(minutes2)
+            time.sleep(0.05)
+        minutes2 += price_text
+        minutes_container2.write(minutes2)
+
+    with st.spinner('GPT-4o 実行中...'):
+        minutes3 = generate_gpt4o(m4a_path, "gpt-4o-2024-05-13")
+        minutes_container3.write(minutes3)
+
+    
+
+
+
+    # while future1.is_alive() or future2.is_alive():
+    #     if not queue1.empty():
+    #         minutes_container1.write(queue1.get())
+    #     if not queue2.empty():
+    #         minutes_container2.write(queue2.get()) 
+    #     if not queue3.empty():
+    #         minutes_container3.write(queue3.get()) 
+    # future1.join()
+    # future2.join()
+    # future3.join()
+
+
 
     directory = 'uploaded_files'
 
