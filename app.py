@@ -250,7 +250,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.title("デモ")
+st.title("商談デモ")
 
 st.sidebar.markdown("# ファイルアップロード")
 uploaded_file = st.sidebar.file_uploader(
